@@ -10,28 +10,29 @@ import (
 
 type File struct {
 	fileName string
-	fileInfo os.FileInfo
+	filePath string
 }
 
 func main() {
-	//создаем канал для списка файлов
 	filelist := make(chan File)
-	//переменные для хранения изначльного пути и пути бэкапа
 	var from, to string
 	wg := &sync.WaitGroup{}
+	Bwg := &sync.WaitGroup{}
 	fmt.Scan(&from, &to)
 
 	wg.Add(1)
 	go scanner(from, filelist, wg)
 
+	for i := 0; i < 3; i++ {
+		Bwg.Add(1)
+		go backuper(to, filelist, Bwg)
+	}
+
 	go func() {
 		wg.Wait()
 		close(filelist)
 	}()
-
-	for v := range filelist {
-		fmt.Println(v)
-	}
+	Bwg.Wait()
 
 }
 
@@ -46,7 +47,7 @@ func scanner(src string, ch chan<- File, wg *sync.WaitGroup) {
 		} else {
 			var n = File{
 				fileName: info.Name(),
-				fileInfo: info,
+				filePath: path,
 			}
 			ch <- n
 			return nil
@@ -55,13 +56,26 @@ func scanner(src string, ch chan<- File, wg *sync.WaitGroup) {
 	})
 }
 
-func backuper(to string, ch <-chan File) {
-	io.Copy(to, (<-ch).fileInfo)
+func backuper(to string, ch <-chan File, wg *sync.WaitGroup) {
+	defer wg.Done()
+	for file := range ch {
+
+		src, err := os.Open(file.filePath)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		defer src.Close()
+
+		dst, err := os.Create(to + "/" + file.fileName)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		defer dst.Close()
+		io.Copy(dst, src)
+	}
 }
 
-func backuperPool() {
-
-}
-
-//scaner
-//chan
+///home/graphffy/Desktop/folder/folderSrc
+///home/graphffy/Desktop/folder/folderDst
