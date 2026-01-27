@@ -14,7 +14,7 @@ type File struct {
 }
 
 func main() {
-	filelist := make(chan File)
+	filelist := make(chan File, 100)
 	var from, to string
 	wg := &sync.WaitGroup{}
 	Bwg := &sync.WaitGroup{}
@@ -39,6 +39,9 @@ func main() {
 func scanner(src string, ch chan<- File, wg *sync.WaitGroup) {
 	defer wg.Done()
 	filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
 		if path == src {
 			return nil
 		}
@@ -59,21 +62,22 @@ func scanner(src string, ch chan<- File, wg *sync.WaitGroup) {
 func backuper(to string, ch <-chan File, wg *sync.WaitGroup) {
 	defer wg.Done()
 	for file := range ch {
+		func() {
+			src, err := os.Open(file.filePath)
+			if err != nil {
+				fmt.Println(err)
 
-		src, err := os.Open(file.filePath)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		defer src.Close()
+			}
+			defer src.Close()
 
-		dst, err := os.Create(to + "/" + file.fileName)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		defer dst.Close()
-		io.Copy(dst, src)
+			dst, err := os.Create(to + "/" + file.fileName)
+			if err != nil {
+				fmt.Println(err)
+
+			}
+			defer dst.Close()
+			io.Copy(dst, src)
+		}()
 	}
 }
 
