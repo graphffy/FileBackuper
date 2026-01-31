@@ -13,8 +13,11 @@ type File struct {
 	filePath string
 }
 
+const backuperCount = 3
+const fileChanSize = 100
+
 func main() {
-	filelist := make(chan File, 100)
+	filelist := make(chan File, fileChanSize)
 	var from, to string
 	wg := &sync.WaitGroup{}
 	Bwg := &sync.WaitGroup{}
@@ -23,7 +26,7 @@ func main() {
 	wg.Add(1)
 	go scanner(from, filelist, wg)
 
-	for i := 0; i < 3; i++ {
+	for i := 0; i < backuperCount; i++ {
 		Bwg.Add(1)
 		go backuper(to, filelist, Bwg)
 	}
@@ -42,18 +45,21 @@ func scanner(src string, ch chan<- File, wg *sync.WaitGroup) {
 		if err != nil {
 			return err
 		}
+		
 		if path == src {
 			return nil
 		}
+		
 		if info.IsDir() {
 			return nil
-		} else {
-			var n = File{
-				fileName: info.Name(),
-				filePath: path,
-			}
-			ch <- n
-			return nil
+		} 
+		
+		n := File{
+			fileName: info.Name(),
+			filePath: path,
+		}
+		ch <- n
+		return nil
 		}
 
 	})
@@ -66,7 +72,6 @@ func backuper(to string, ch <-chan File, wg *sync.WaitGroup) {
 			src, err := os.Open(file.filePath)
 			if err != nil {
 				fmt.Println(err)
-
 			}
 			defer src.Close()
 
@@ -76,6 +81,7 @@ func backuper(to string, ch <-chan File, wg *sync.WaitGroup) {
 
 			}
 			defer dst.Close()
+			
 			io.Copy(dst, src)
 		}()
 	}
